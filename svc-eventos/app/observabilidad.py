@@ -13,7 +13,11 @@ from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
+from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, disable_created_metrics
+
+# Sin las series "*_created" que prometheus_client agrega a cada contador:
+# Prometheus no las necesita y solo ensucian las consultas.
+disable_created_metrics()
 
 
 # ── Logs ─────────────────────────────────────────────────────────────
