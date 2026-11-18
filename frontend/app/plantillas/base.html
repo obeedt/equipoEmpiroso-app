@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Empiroso Boletos{% endblock %}</title>
+  <style>
+    :root {
+      --fondo: #0f1020; --panel: #1a1b33; --borde: #2c2e55; --texto: #eceefe; --suave: #a3a6d0;
+      --acento: #ff4d8d; --acento2: #7c5cff; --ok: #34d399; --alerta: #fbbf24; --error: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+           background: var(--fondo); color: var(--texto); line-height: 1.5; }
+    a { color: inherit; }
+    header { background: linear-gradient(90deg, var(--acento2), var(--acento)); }
+    header .contenido { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+                        max-width: 1100px; margin: 0 auto; padding: 14px 16px; }
+    .marca { font-weight: 800; font-size: 1.35rem; text-decoration: none; letter-spacing: .3px; }
+    .marca span { opacity: .85; font-weight: 600; }
+    nav a { text-decoration: none; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+            background: rgba(255,255,255,.18); }
+    .aviso { background: var(--alerta); color: #1a1300; text-align: center; padding: 8px 16px; font-weight: 600; }
+    main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 1.8rem; margin: 0 0 6px; }
+    h2 { font-size: 1.25rem; margin: 24px 0 12px; }
+    .sub { color: var(--suave); margin: 0 0 20px; }
+    .rejilla { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+    .tarjeta { background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; padding: 16px;
+               display: flex; flex-direction: column; gap: 6px; text-decoration: none; transition: transform .15s; }
+    a.tarjeta:hover { transform: translateY(-3px); border-color: var(--acento2); }
+    .artista { font-size: 1.15rem; font-weight: 700; }
+    .meta { color: var(--suave); font-size: .92rem; }
+    .precio { margin-top: auto; font-weight: 700; }
+    .chip { display: inline-block; font-size: .78rem; font-weight: 700; padding: 2px 10px; border-radius: 999px;
+            background: var(--borde); color: var(--suave); width: fit-content; }
+    .chip.caliente { background: var(--acento); color: #fff; }
+    .chip.agotado { background: #444; color: #ddd; }
+    .barra { height: 6px; background: var(--borde); border-radius: 99px; overflow: hidden; }
+    .barra div { height: 100%; background: linear-gradient(90deg, var(--acento2), var(--acento)); }
+    .filtros { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+    select, input { background: var(--panel); color: var(--texto); border: 1px solid var(--borde);
+                    border-radius: 10px; padding: 10px 12px; font-size: 1rem; }
+    button, .boton { background: var(--acento); color: #fff; border: 0; border-radius: 10px; padding: 11px 18px;
+                     font-size: 1rem; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-block; }
+    button.secundario { background: transparent; border: 1px solid var(--borde); color: var(--suave); }
+    table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 12px; overflow: hidden; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--borde); }
+    th { color: var(--suave); font-weight: 600; font-size: .9rem; }
+    .panel { background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; padding: 20px; }
+    .dos { display: grid; gap: 20px; grid-template-columns: 1fr; }
+    @media (min-width: 820px) { .dos { grid-template-columns: 3fr 2fr; } }
+    form.compra { display: grid; gap: 12px; }
+    label { display: grid; gap: 4px; color: var(--suave); font-size: .92rem; }
+    .error { background: rgba(248,113,113,.12); border: 1px solid var(--error); color: #fecaca;
+             padding: 12px 14px; border-radius: 10px; margin-bottom: 16px; }
+    .exito { background: rgba(52,211,153,.12); border: 1px solid var(--ok); padding: 12px 14px; border-radius: 10px; }
+    .reloj { font-size: 1.6rem; font-weight: 800; color: var(--alerta); }
+    .folio { font-family: ui-monospace, monospace; background: var(--panel); padding: 6px 10px; border-radius: 8px; }
+    footer { color: var(--suave); font-size: .85rem; text-align: center; padding: 24px 16px 32px;
+             border-top: 1px solid var(--borde); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="contenido">
+      <a class="marca" href="/">Empiroso <span>Boletos</span></a>
+      <nav><a href="/carrito">Mi carrito</a></nav>
+    </div>
+  </header>
+  {% if banner %}<div class="aviso">{{ banner }}</div>{% endif %}
+  <main>
+    {% block contenido %}{% endblock %}
+  </main>
+  <footer>
+    Datos de ejemplo para una demo académica · No es una venta real · DevOps 2026, UNAM<br>
+    versión {{ version }}
+  </footer>
+</body>
+</html>

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block titulo %}Mi carrito · Empiroso Boletos{% endblock %}
+{% block contenido %}
+<h1>Mi carrito</h1>
+
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+{% if not reservacion or reservacion.estado != "activa" %}
+  <p class="sub">Tu carrito está vacío.</p>
+  <a class="boton" href="/">Ver conciertos</a>
+{% else %}
+<div class="dos">
+  <section>
+    <p class="sub">{{ evento.artista }} · {{ evento.nombre }}<br>{{ evento.fecha | fecha }} · {{ evento.recinto }}, {{ evento.ciudad }}</p>
+    <table>
+      <thead><tr><th>Sección</th><th>Fila</th><th>Asiento</th><th>Precio</th></tr></thead>
+      <tbody>
+        {% for a in reservacion.asientos %}
+        <tr><td>{{ a.seccion }}</td><td>{{ a.fila }}</td><td>{{ a.numero }}</td><td>{{ a.precio | dinero }}</td></tr>
+        {% endfor %}
+        <tr><th colspan="3">Total ({{ reservacion.cantidad }} boletos)</th><th>{{ reservacion.total | dinero }}</th></tr>
+      </tbody>
+    </table>
+    <form method="post" action="/carrito/cancelar" style="margin-top:14px">
+      <button class="secundario" type="submit">Cancelar y liberar los lugares</button>
+    </form>
+  </section>
+
+  <aside class="panel">
+    <p class="meta" style="margin-top:0">Tus lugares están apartados hasta las {{ reservacion.expira_en | hora }}</p>
+    <div class="reloj" id="reloj" data-expira="{{ reservacion.expira_en }}">10:00</div>
+    <h2>Pagar</h2>
+    <form class="compra" method="post" action="/pagar">
+      <label>Nombre<input name="cliente_nombre" required minlength="2" maxlength="120" value="{{ nombre }}"></label>
+      <label>Correo<input name="cliente_email" type="email" required maxlength="200" value="{{ email }}"></label>
+      <button type="submit">Pagar {{ reservacion.total | dinero }}</button>
+      <p class="meta">Pago simulado: no se cobra nada.</p>
+    </form>
+  </aside>
+</div>
+<script>
+  // Cuenta regresiva; al llegar a cero recarga la página (el carrito ya venció)
+  const reloj = document.getElementById("reloj");
+  const fin = new Date(reloj.dataset.expira).getTime();
+  function tic() {
+    const s = Math.max(0, Math.floor((fin - Date.now()) / 1000));
+    reloj.textContent = String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+    if (s === 0) { setTimeout(() => location.reload(), 1500); } else { setTimeout(tic, 1000); }
+  }
+  tic();
+</script>
+{% endif %}
+{% endblock %}

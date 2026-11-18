@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block titulo %}Pedido {{ orden.id }} · Empiroso Boletos{% endblock %}
+{% block contenido %}
+<div class="exito"><strong>¡Listo, {{ orden.cliente_nombre }}!</strong> Tu compra quedó registrada.</div>
+
+<h1 style="margin-top:20px">Pedido #{{ orden.id }}</h1>
+<p class="sub">{{ orden.artista }} · {{ orden.evento }}<br>{{ orden.fecha | fecha }} · {{ orden.recinto }}, {{ orden.ciudad }}</p>
+
+<table>
+  <thead><tr><th>Sección</th><th>Fila</th><th>Asiento</th><th>Precio</th></tr></thead>
+  <tbody>
+    {% for a in orden.asientos %}
+    <tr><td>{{ a.seccion }}</td><td>{{ a.fila }}</td><td>{{ a.numero }}</td><td>{{ a.precio | dinero }}</td></tr>
+    {% endfor %}
+    <tr><th colspan="3">Total pagado</th><th>{{ orden.total | dinero }}</th></tr>
+  </tbody>
+</table>
+<p class="meta">Enviamos la confirmación a {{ orden.cliente_email }} (simulado).</p>
+<a class="boton" href="/">Ver más conciertos</a>
+{% endblock %}

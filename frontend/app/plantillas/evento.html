@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block titulo %}{{ evento.artista }} · Empiroso Boletos{% endblock %}
+{% block contenido %}
+<p class="sub"><a href="/">← Todos los conciertos</a></p>
+<h1>{{ evento.artista }}</h1>
+<p class="sub">{{ evento.nombre }} · {{ evento.fecha | fecha }} · {{ evento.recinto }}, {{ evento.ciudad }}</p>
+
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<div class="dos">
+  <section>
+    <p>{{ evento.descripcion }}</p>
+    <h2>Secciones</h2>
+    <table>
+      <thead><tr><th>Sección</th><th>Precio</th><th>Disponibles</th></tr></thead>
+      <tbody>
+        {% for s in evento.secciones %}
+        <tr>
+          <td><strong>{{ s.seccion }}</strong></td>
+          <td>{{ s.precio | dinero }}</td>
+          <td>{% if s.disponibles == 0 %}Agotado{% else %}{{ "{:,}".format(s.disponibles) }} de {{ "{:,}".format(s.total) }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="meta">Aforo: {{ "{:,}".format(evento.capacidad) }} · {{ evento.porcentaje_vendido }} % vendido</p>
+  </section>
+
+  <aside class="panel">
+    <h2 style="margin-top:0">Comprar boletos</h2>
+    {% if evento.disponibles == 0 %}
+      <p>Este concierto está agotado.</p>
+    {% else %}
+    <form class="compra" method="post" action="/carrito">
+      <input type="hidden" name="evento_id" value="{{ evento.id }}">
+      <label>Sección
+        <select name="seccion" required>
+          {% for s in evento.secciones if s.disponibles > 0 %}
+          <option value="{{ s.seccion }}">{{ s.seccion }} · {{ s.precio | dinero }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Boletos
+        <select name="cantidad">
+          {% for n in range(1, 11) %}<option value="{{ n }}" {% if n == 2 %}selected{% endif %}>{{ n }}</option>{% endfor %}
+        </select>
+      </label>
+      <button type="submit">Apartar los mejores lugares</button>
+      <p class="meta">Los lugares quedan apartados 10 minutos mientras pagas.</p>
+    </form>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}
