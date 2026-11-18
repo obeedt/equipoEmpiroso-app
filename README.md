@@ -9,15 +9,33 @@ construye.
 Los manifiestos para desplegarlos en Kubernetes están en
 [equipoEmpiroso-gitops](https://github.com/obeedt/equipoEmpiroso-gitops).
 
+La tienda en el clúster: **http://tienda.100.103.221.107.nip.io** (desde la tailnet).
+
 ## Estructura
 
-| Carpeta | Qué va ahí |
-|---|---|
-| [`frontend/`](frontend/) | Sitio web de la boletera |
-| [`svc-eventos/`](svc-eventos/) | Catálogo de conciertos y boletos |
-| [`svc-ordenes/`](svc-ordenes/) | Órdenes de compra |
-| [`svc-reservaciones/`](svc-reservaciones/) | Reservación de asientos con bloqueo temporal (servicio distintivo) |
-| [`tekton/`](tekton/) | Pipeline de CI: pruebas, construcción y publicación de imágenes |
+| Carpeta | Qué es | Imagen en Docker Hub |
+|---|---|---|
+| [`frontend/`](frontend/) | Sitio web: catálogo, carrito y pago (FastAPI + Jinja2) | `obeedt/devops-frontend` |
+| [`svc-eventos/`](svc-eventos/) | Catálogo de conciertos y métrica de negocio | `obeedt/devops-eventos` |
+| [`svc-reservaciones/`](svc-reservaciones/) | Carrito: reservación de asientos con bloqueo temporal (servicio distintivo) | `obeedt/devops-reservaciones` |
+| [`svc-ordenes/`](svc-ordenes/) | Pago de reservaciones y pedidos | `obeedt/devops-ordenes` |
+| [`tekton/`](tekton/) | Pipeline de CI: pruebas, construcción y publicación de imágenes | — |
+
+Cada imagen se etiqueta con el **SHA corto del commit**. Cada carpeta tiene su
+`README.md` con endpoints, métricas y configuración. La documentación completa
+de la etapa está en
+[equipoEmpiroso-gitops/docs/05-microservicios.md](https://github.com/obeedt/equipoEmpiroso-gitops/blob/main/docs/05-microservicios.md).
+
+## Pruebas
+
+En cada carpeta:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+50 pruebas en total (10 + 15 + 12 + 13), sin base de datos ni otros servicios.
 
 ## Flujo
 
