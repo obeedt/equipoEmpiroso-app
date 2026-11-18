@@ -1,0 +1,14 @@
+# Namespace de las ejecuciones de CI.
+#
+# Tekton se instala en "tekton-pipelines", que viene con la política de
+# seguridad "restricted". Buildah necesita un contenedor privilegiado para
+# construir imágenes, así que las ejecuciones van en este namespace aparte,
+# con la política "privileged". Todos sus pods corren en k8s-w3 (rol metricas).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ci
+  labels:
+    app.kubernetes.io/part-of: boletera
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: privileged

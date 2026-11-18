@@ -1,0 +1,110 @@
+# Disparo por webhook de GitHub
+#
+# GitHub (push a main) → Tailscale Funnel (https://k8s-w3.tail4f16c9.ts.net)
+#   → Service webhook-github (NodePort 30880) → EventListener "boletera"
+#   → interceptor github: valida la firma con el secreto del webhook
+#   → interceptor cel: solo pushes a main (no borrados de rama)
+#   → TriggerBinding toma before/after del push → TriggerTemplate crea el PipelineRun
+
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: github-push
+  namespace: ci
+spec:
+  params:
+    - name: revision
+      value: $(body.after)
+    - name: antes
+      value: $(body.before)
+    - name: repo-url
+      value: $(body.repository.clone_url)
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: boletera-ci
+  namespace: ci
+spec:
+  params:
+    - name: revision
+    - name: antes
+      default: ""
+    - name: repo-url
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: boletera-ci-
+        labels:
+          app.kubernetes.io/part-of: boletera
+          boletera.io/disparado-por: webhook
+      spec:
+        pipelineRef:
+          name: boletera-ci
+        params:
+          - { name: revision, value: $(tt.params.revision) }
+          - { name: antes, value: $(tt.params.antes) }
+          - { name: repo-url, value: $(tt.params.repo-url) }
+        taskRunTemplate:
+          serviceAccountName: pipeline
+        timeouts:
+          pipeline: 30m
+        workspaces:
+          # Volumen de trabajo de esta ejecución, en el disco de k8s-w3.
+          # Se borra junto con el PipelineRun.
+          - name: fuente
+            volumeClaimTemplate:
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                storageClassName: local-path
+                resources:
+                  requests:
+                    storage: 1Gi
+          - name: docker-config
+            secret:
+              secretName: dockerhub
+          - name: github-token
+            secret:
+              secretName: github-gitops
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: boletera
+  namespace: ci
+spec:
+  serviceAccountName: disparador
+  triggers:
+    - name: push-a-main
+      interceptors:
+        - ref:
+            name: github
+            kind: ClusterInterceptor
+          params:
+            # Secret "github-webhook" (clave "secret"): el mismo valor que se
+            # pone en la configuración del webhook en GitHub. Sin firma
+            # válida, la petición se rechaza.
+            - name: secretRef
+              value:
+                secretName: github-webhook
+                secretKey: secret
+            - name: eventTypes
+              value: ["push"]
+        - ref:
+            name: cel
+            kind: ClusterInterceptor
+          params:
+            - name: filter
+              value: body.ref == 'refs/heads/main' && body.deleted == false
+      bindings:
+        - ref: github-push
+      template:
+        ref: boletera-ci
+  resources:
+    kubernetesResource:
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              boletera.io/metricas: "true"

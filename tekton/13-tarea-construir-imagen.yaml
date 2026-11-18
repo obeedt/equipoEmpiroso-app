@@ -1,0 +1,73 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: construir-imagen
+  namespace: ci
+spec:
+  description: >-
+    Construye la imagen de un servicio con Buildah (a partir de su
+    Containerfile) y la publica en Docker Hub con la etiqueta indicada.
+  params:
+    - name: ruta
+      type: string
+      description: Carpeta del servicio (contiene su Containerfile)
+    - name: imagen
+      type: string
+      description: Repositorio, p. ej. docker.io/obeedt/devops-eventos
+    - name: tag
+      type: string
+      description: Etiqueta = SHA corto del commit
+  workspaces:
+    - name: fuente
+    - name: docker-config
+      description: Secret "dockerhub" (tipo docker-registry) con el token de Docker Hub
+      readOnly: true
+  results:
+    - name: digest
+      description: Digest (sha256) de la imagen publicada
+  volumes:
+    # Almacenamiento de Buildah: temporal, se borra al terminar el pod
+    - name: contenedores
+      emptyDir: {}
+  steps:
+    - name: construir-y-publicar
+      # Buildah: Kaniko fue archivado por Google en junio de 2025
+      image: quay.io/buildah/stable:v1.45.1
+      workingDir: $(workspaces.fuente.path)/$(params.ruta)
+      # Buildah necesita privilegios para crear las capas de la imagen dentro
+      # de un pod. Por eso este pod vive en el namespace "ci" y en k8s-w3.
+      securityContext:
+        privileged: true
+      env:
+        - { name: STORAGE_DRIVER, value: overlay }
+        - { name: BUILDAH_ISOLATION, value: chroot }
+        - { name: REGISTRY_AUTH_FILE, value: $(workspaces.docker-config.path)/.dockerconfigjson }
+      volumeMounts:
+        - { name: contenedores, mountPath: /var/lib/containers }
+      computeResources:
+        requests: { cpu: 500m, memory: 512Mi }
+        limits: { memory: 2Gi }
+      script: |
+        #!/bin/sh
+        set -eu
+        # La imagen base (python) se descarga por el espejo de Google, igual
+        # que containerd en los nodos: no depende de Cloudflare ni del límite
+        # de descargas anónimas de Docker Hub.
+        mkdir -p /etc/containers/registries.conf.d
+        cat > /etc/containers/registries.conf.d/50-espejo-docker-hub.conf <<'EOF'
+        [[registry]]
+        prefix = "docker.io"
+        location = "docker.io"
+
+        [[registry.mirror]]
+        location = "mirror.gcr.io"
+        EOF
+
+        IMAGEN="$(params.imagen):$(params.tag)"
+        buildah --version
+        buildah build --layers=false \
+          --build-arg VERSION="$(params.tag)" \
+          -f Containerfile -t "$IMAGEN" .
+        buildah push --digestfile /tmp/digest "$IMAGEN" "docker://$IMAGEN"
+        printf %s "$(cat /tmp/digest)" > "$(results.digest.path)"
+        echo "Publicada: $IMAGEN@$(cat /tmp/digest)"

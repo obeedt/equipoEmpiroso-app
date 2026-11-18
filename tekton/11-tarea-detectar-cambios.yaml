@@ -1,0 +1,64 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: detectar-cambios
+  namespace: ci
+spec:
+  description: >-
+    Decide qué servicios hay que probar y construir, comparando el commit
+    anterior del push con el nuevo (git diff). Así un cambio solo en frontend/
+    no reconstruye los otros tres servicios.
+  params:
+    - name: antes
+      type: string
+      default: ""
+      description: Commit anterior del push (vacío o 000… = construir todo)
+    - name: forzar
+      type: string
+      default: "no"
+      description: '"si" construye los 4 servicios sin mirar los cambios'
+  workspaces:
+    - name: fuente
+  results:
+    - { name: eventos, description: '"si" si cambió svc-eventos/' }
+    - { name: reservaciones, description: '"si" si cambió svc-reservaciones/' }
+    - { name: ordenes, description: '"si" si cambió svc-ordenes/' }
+    - { name: frontend, description: '"si" si cambió frontend/' }
+    - { name: alguno, description: '"si" si hay al menos un servicio que construir' }
+    - { name: tag, description: SHA corto del commit (7 caracteres) = etiqueta de las imágenes }
+  steps:
+    - name: detectar
+      image: docker.io/alpine/git:v2.54.0
+      workingDir: $(workspaces.fuente.path)
+      computeResources:
+        requests: { cpu: 50m, memory: 64Mi }
+        limits: { memory: 128Mi }
+      script: |
+        #!/bin/sh
+        set -eu
+        git rev-parse --short=7 HEAD | tr -d '\n' > "$(results.tag.path)"
+
+        ANTES="$(params.antes)"
+        if [ "$(params.forzar)" = "si" ]; then
+          echo "forzar=si: se construyen los 4 servicios"
+          CAMBIOS=$(printf 'svc-eventos/\nsvc-reservaciones/\nsvc-ordenes/\nfrontend/\n')
+        elif [ -z "$ANTES" ] || ! git cat-file -e "${ANTES}^{commit}" 2>/dev/null; then
+          echo "Sin commit anterior conocido (${ANTES:-vacío}): se construyen los 4 servicios"
+          CAMBIOS=$(printf 'svc-eventos/\nsvc-reservaciones/\nsvc-ordenes/\nfrontend/\n')
+        else
+          echo "Archivos que cambiaron entre ${ANTES} y $(git rev-parse --short=7 HEAD):"
+          CAMBIOS=$(git diff --name-only "$ANTES" HEAD)
+          echo "$CAMBIOS" | sed 's/^/  /'
+        fi
+
+        cambio() { echo "$CAMBIOS" | grep -q "^$1/" && echo si || echo no; }
+        E=$(cambio svc-eventos); R=$(cambio svc-reservaciones)
+        O=$(cambio svc-ordenes); F=$(cambio frontend)
+        printf %s "$E" > "$(results.eventos.path)"
+        printf %s "$R" > "$(results.reservaciones.path)"
+        printf %s "$O" > "$(results.ordenes.path)"
+        printf %s "$F" > "$(results.frontend.path)"
+        case "$E$R$O$F" in *si*) A=si ;; *) A=no ;; esac
+        printf %s "$A" > "$(results.alguno.path)"
+
+        echo "A construir → eventos=$E reservaciones=$R ordenes=$O frontend=$F"

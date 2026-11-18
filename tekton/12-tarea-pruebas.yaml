@@ -1,0 +1,35 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: pruebas
+  namespace: ci
+spec:
+  description: >-
+    Corre las pruebas (pytest) de un servicio. Si alguna falla, el pipeline
+    se detiene y la imagen no se construye.
+  params:
+    - name: ruta
+      type: string
+      description: Carpeta del servicio (p. ej. svc-eventos)
+  workspaces:
+    - name: fuente
+  steps:
+    - name: pytest
+      # La misma imagen base que el Containerfile de los servicios
+      image: docker.io/library/python:3.14.10-slim-trixie
+      workingDir: $(workspaces.fuente.path)/$(params.ruta)
+      env:
+        - { name: PIP_DISABLE_PIP_VERSION_CHECK, value: "1" }
+        - { name: PIP_NO_CACHE_DIR, value: "1" }
+        - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+      computeResources:
+        requests: { cpu: 250m, memory: 256Mi }
+        limits: { memory: 1Gi }
+      script: |
+        #!/bin/sh
+        set -eu
+        # Entorno virtual fuera del volumen compartido: no ensucia el
+        # contexto de construcción de la imagen
+        python -m venv /tmp/venv
+        /tmp/venv/bin/pip install --quiet -r requirements-dev.txt
+        /tmp/venv/bin/python -m pytest -q -p no:cacheprovider

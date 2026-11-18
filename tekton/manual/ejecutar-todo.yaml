@@ -1,0 +1,40 @@
+# Ejecución manual del pipeline: construye LOS 4 servicios desde el último
+# commit de main. Útil para la primera vez y para probar el pipeline sin hacer
+# un commit. Argo CD no aplica esta carpeta (tekton/manual).
+#
+# Uso (en k8s-cp):
+#   kubectl create -f ejecutar-todo.yaml
+#   kubectl -n ci get pipelineruns -w
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: boletera-ci-manual-
+  namespace: ci
+  labels:
+    app.kubernetes.io/part-of: boletera
+    boletera.io/disparado-por: manual
+spec:
+  pipelineRef:
+    name: boletera-ci
+  params:
+    - { name: revision, value: main }
+    - { name: forzar, value: "si" }
+  taskRunTemplate:
+    serviceAccountName: pipeline
+  timeouts:
+    pipeline: 30m
+  workspaces:
+    - name: fuente
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          storageClassName: local-path
+          resources:
+            requests:
+              storage: 1Gi
+    - name: docker-config
+      secret:
+        secretName: dockerhub
+    - name: github-token
+      secret:
+        secretName: github-gitops

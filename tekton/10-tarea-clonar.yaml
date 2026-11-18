@@ -1,0 +1,34 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: clonar
+  namespace: ci
+spec:
+  description: Clona el repositorio de la aplicación en el commit indicado.
+  params:
+    - name: url
+      type: string
+    - name: revision
+      type: string
+      description: SHA del commit (o rama)
+  workspaces:
+    - name: fuente
+  results:
+    - name: commit
+      description: SHA completo del commit clonado
+  steps:
+    - name: clonar
+      image: docker.io/alpine/git:v2.54.0
+      workingDir: $(workspaces.fuente.path)
+      computeResources:
+        requests: { cpu: 50m, memory: 64Mi }
+        limits: { memory: 256Mi }
+      script: |
+        #!/bin/sh
+        set -eu
+        # El volumen se reutiliza entre tareas: se empieza vacío
+        find . -mindepth 1 -delete
+        git clone --quiet "$(params.url)" .
+        git checkout --quiet "$(params.revision)"
+        git rev-parse HEAD | tr -d '\n' > "$(results.commit.path)"
+        git log -1 --format='Commit %h · %an · %s'

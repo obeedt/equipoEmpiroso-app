@@ -1,0 +1,44 @@
+# Cuentas de servicio del CI
+#
+# pipeline    → la usan los pods de cada ejecución. No necesita permisos en el
+#               clúster: las credenciales le llegan como workspaces (Secrets).
+# disparador  → la usa el EventListener para recibir webhooks y crear
+#               PipelineRuns. Usa los roles que trae Tekton Triggers.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipeline
+  namespace: ci
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: disparador
+  namespace: ci
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: disparador-eventlistener
+  namespace: ci
+subjects:
+  - kind: ServiceAccount
+    name: disparador
+    namespace: ci
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tekton-triggers-eventlistener-roles
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ci-disparador-eventlistener
+subjects:
+  - kind: ServiceAccount
+    name: disparador
+    namespace: ci
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tekton-triggers-eventlistener-clusterroles

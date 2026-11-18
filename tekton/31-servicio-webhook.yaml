@@ -1,0 +1,20 @@
+# Puerta de entrada del webhook en un puerto fijo de los nodos (30880).
+#
+# Tailscale Funnel corre en k8s-w3 y reenvía https://k8s-w3.tail4f16c9.ts.net
+# a http://127.0.0.1:30880. Solo este Service queda expuesto a internet:
+# Traefik, Argo CD y la tienda siguen solo dentro de la tailnet.
+# En la red física el puerto 30880 está cerrado por firewalld (zona public).
+apiVersion: v1
+kind: Service
+metadata:
+  name: webhook-github
+  namespace: ci
+spec:
+  type: NodePort
+  selector:
+    eventlistener: boletera        # pods que crea Tekton Triggers para el EventListener "boletera"
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30880

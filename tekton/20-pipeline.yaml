@@ -1,0 +1,175 @@
+# Pipeline de CI de la boletera
+#
+#   clonar → detectar-cambios ─┬─ pruebas-eventos ──────┐
+#                               ├─ pruebas-reservaciones ─┤  (en paralelo)
+#                               ├─ pruebas-ordenes ───────┤
+#                               └─ pruebas-frontend ──────┘
+#        construir-eventos → construir-reservaciones → construir-ordenes → construir-frontend
+#                                                                       → actualizar-gitops
+#
+# Cada servicio se prueba y construye solo si su carpeta cambió (when).
+# Las construcciones van una tras otra para no saturar la memoria de k8s-w3;
+# una construcción que se salta no detiene a las siguientes.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: boletera-ci
+  namespace: ci
+spec:
+  description: Pruebas, imagen en Docker Hub con tag = SHA del commit y actualización del repo GitOps.
+  params:
+    - name: repo-url
+      type: string
+      default: https://github.com/obeedt/equipoEmpiroso-app.git
+    - name: revision
+      type: string
+      description: Commit a construir (el "after" del push)
+    - name: antes
+      type: string
+      default: ""
+      description: Commit anterior (el "before" del push)
+    - name: forzar
+      type: string
+      default: "no"
+    - name: gitops-url
+      type: string
+      default: https://github.com/obeedt/equipoEmpiroso-gitops.git
+    - name: github-usuario
+      type: string
+      default: obeedt
+    - name: registro
+      type: string
+      default: docker.io/obeedt
+  workspaces:
+    - name: fuente
+    - name: docker-config
+    - name: github-token
+  tasks:
+    - name: clonar
+      taskRef: { name: clonar }
+      params:
+        - { name: url, value: $(params.repo-url) }
+        - { name: revision, value: $(params.revision) }
+      workspaces:
+        - { name: fuente, workspace: fuente }
+
+    - name: detectar-cambios
+      runAfter: [clonar]
+      taskRef: { name: detectar-cambios }
+      params:
+        - { name: antes, value: $(params.antes) }
+        - { name: forzar, value: $(params.forzar) }
+      workspaces:
+        - { name: fuente, workspace: fuente }
+
+    # ── Pruebas (en paralelo) ─────────────────────────────────────────
+    - name: pruebas-eventos
+      runAfter: [detectar-cambios]
+      when:
+        - { input: $(tasks.detectar-cambios.results.eventos), operator: in, values: ["si"] }
+      taskRef: { name: pruebas }
+      params:
+        - { name: ruta, value: svc-eventos }
+      workspaces:
+        - { name: fuente, workspace: fuente }
+
+    - name: pruebas-reservaciones
+      runAfter: [detectar-cambios]
+      when:
+        - { input: $(tasks.detectar-cambios.results.reservaciones), operator: in, values: ["si"] }
+      taskRef: { name: pruebas }
+      params:
+        - { name: ruta, value: svc-reservaciones }
+      workspaces:
+        - { name: fuente, workspace: fuente }
+
+    - name: pruebas-ordenes
+      runAfter: [detectar-cambios]
+      when:
+        - { input: $(tasks.detectar-cambios.results.ordenes), operator: in, values: ["si"] }
+      taskRef: { name: pruebas }
+      params:
+        - { name: ruta, value: svc-ordenes }
+      workspaces:
+        - { name: fuente, workspace: fuente }
+
+    - name: pruebas-frontend
+      runAfter: [detectar-cambios]
+      when:
+        - { input: $(tasks.detectar-cambios.results.frontend), operator: in, values: ["si"] }
+      taskRef: { name: pruebas }
+      params:
+        - { name: ruta, value: frontend }
+      workspaces:
+        - { name: fuente, workspace: fuente }
+
+    # ── Construcción y publicación (una tras otra) ────────────────────
+    - name: construir-eventos
+      runAfter: [pruebas-eventos]
+      when:
+        - { input: $(tasks.detectar-cambios.results.eventos), operator: in, values: ["si"] }
+      taskRef: { name: construir-imagen }
+      params:
+        - { name: ruta, value: svc-eventos }
+        - { name: imagen, value: $(params.registro)/devops-eventos }
+        - { name: tag, value: $(tasks.detectar-cambios.results.tag) }
+      workspaces:
+        - { name: fuente, workspace: fuente }
+        - { name: docker-config, workspace: docker-config }
+
+    - name: construir-reservaciones
+      runAfter: [pruebas-reservaciones, construir-eventos]
+      when:
+        - { input: $(tasks.detectar-cambios.results.reservaciones), operator: in, values: ["si"] }
+      taskRef: { name: construir-imagen }
+      params:
+        - { name: ruta, value: svc-reservaciones }
+        - { name: imagen, value: $(params.registro)/devops-reservaciones }
+        - { name: tag, value: $(tasks.detectar-cambios.results.tag) }
+      workspaces:
+        - { name: fuente, workspace: fuente }
+        - { name: docker-config, workspace: docker-config }
+
+    - name: construir-ordenes
+      runAfter: [pruebas-ordenes, construir-reservaciones]
+      when:
+        - { input: $(tasks.detectar-cambios.results.ordenes), operator: in, values: ["si"] }
+      taskRef: { name: construir-imagen }
+      params:
+        - { name: ruta, value: svc-ordenes }
+        - { name: imagen, value: $(params.registro)/devops-ordenes }
+        - { name: tag, value: $(tasks.detectar-cambios.results.tag) }
+      workspaces:
+        - { name: fuente, workspace: fuente }
+        - { name: docker-config, workspace: docker-config }
+
+    - name: construir-frontend
+      runAfter: [pruebas-frontend, construir-ordenes]
+      when:
+        - { input: $(tasks.detectar-cambios.results.frontend), operator: in, values: ["si"] }
+      taskRef: { name: construir-imagen }
+      params:
+        - { name: ruta, value: frontend }
+        - { name: imagen, value: $(params.registro)/devops-frontend }
+        - { name: tag, value: $(tasks.detectar-cambios.results.tag) }
+      workspaces:
+        - { name: fuente, workspace: fuente }
+        - { name: docker-config, workspace: docker-config }
+
+    # ── Despliegue: solo se toca Git; Argo CD hace el resto ───────────
+    - name: actualizar-gitops
+      runAfter: [construir-frontend]
+      when:
+        - { input: $(tasks.detectar-cambios.results.alguno), operator: in, values: ["si"] }
+      taskRef: { name: actualizar-gitops }
+      params:
+        - { name: repo, value: $(params.gitops-url) }
+        - { name: usuario, value: $(params.github-usuario) }
+        - { name: tag, value: $(tasks.detectar-cambios.results.tag) }
+        - { name: commit, value: $(tasks.clonar.results.commit) }
+        - { name: eventos, value: $(tasks.detectar-cambios.results.eventos) }
+        - { name: reservaciones, value: $(tasks.detectar-cambios.results.reservaciones) }
+        - { name: ordenes, value: $(tasks.detectar-cambios.results.ordenes) }
+        - { name: frontend, value: $(tasks.detectar-cambios.results.frontend) }
+      workspaces:
+        - { name: github-token, workspace: github-token }

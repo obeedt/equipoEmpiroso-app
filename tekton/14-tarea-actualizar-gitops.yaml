@@ -1,0 +1,83 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: actualizar-gitops
+  namespace: ci
+spec:
+  description: >-
+    Cambia la etiqueta de imagen (newTag) de los servicios construidos en el
+    repo GitOps y hace push. Argo CD ve el commit y despliega la versión nueva.
+    Tekton construye; Argo CD despliega.
+  params:
+    - name: repo
+      type: string
+      description: URL del repo GitOps
+    - name: usuario
+      type: string
+      description: Usuario de GitHub dueño del token
+    - name: tag
+      type: string
+    - name: commit
+      type: string
+      description: SHA completo del commit de la aplicación (va en el mensaje)
+    - { name: eventos, type: string }
+    - { name: reservaciones, type: string }
+    - { name: ordenes, type: string }
+    - { name: frontend, type: string }
+  workspaces:
+    - name: github-token
+      description: Secret "github-gitops" con la clave "token" (fine-grained, solo este repo, Contents read/write)
+      readOnly: true
+  steps:
+    - name: actualizar
+      image: docker.io/alpine/git:v2.54.0
+      computeResources:
+        requests: { cpu: 50m, memory: 64Mi }
+        limits: { memory: 256Mi }
+      script: |
+        #!/bin/sh
+        set -eu
+        # El token nunca se imprime: git lo pide a este "credential helper",
+        # que lo lee del Secret montado.
+        TOKEN_FILE="$(workspaces.github-token.path)/token"
+        git config --global credential.helper \
+          "!f() { echo username=$(params.usuario); printf 'password=%s\n' \"\$(cat $TOKEN_FILE)\"; }; f"
+        git config --global user.name "Tekton CI (boletera)"
+        git config --global user.email "tekton-ci@boletera.local"
+
+        cd /tmp
+        git clone --quiet --depth 20 "$(params.repo)" gitops
+        cd gitops
+
+        CAMBIADOS=""
+        actualizar() {   # $1 = carpeta en tienda/, $2 = si/no
+          [ "$2" = "si" ] || return 0
+          sed -i "s/^\([[:space:]]*newTag:\).*/\1 $(params.tag)/" "tienda/$1/kustomization.yaml"
+          CAMBIADOS="$CAMBIADOS $1"
+        }
+        actualizar svc-eventos       "$(params.eventos)"
+        actualizar svc-reservaciones "$(params.reservaciones)"
+        actualizar svc-ordenes       "$(params.ordenes)"
+        actualizar frontend          "$(params.frontend)"
+
+        if git diff --quiet; then
+          echo "El repo GitOps ya tenía la versión $(params.tag); no hay nada que cambiar."
+          exit 0
+        fi
+        git diff --stat
+        git add tienda
+        git commit --quiet \
+          -m "ci: desplegar $(params.tag) en${CAMBIADOS}" \
+          -m "Imágenes construidas por Tekton desde equipoEmpiroso-app@$(params.commit)."
+
+        # Si alguien hizo push mientras tanto, se reintenta sobre lo nuevo
+        for intento in 1 2 3; do
+          if git push --quiet origin HEAD:main; then
+            echo "Push listo: $(git log -1 --format='%h %s')"
+            exit 0
+          fi
+          echo "Push rechazado (intento $intento); actualizando y reintentando..."
+          git pull --quiet --rebase origin main
+        done
+        echo "No se pudo hacer push al repo GitOps" >&2
+        exit 1
