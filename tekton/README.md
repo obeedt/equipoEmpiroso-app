@@ -79,3 +79,6 @@ kubectl -n ci get taskruns -l tekton.dev/pipelineRun=<nombre>
 ```
 
 También en el Tekton Dashboard (solo lectura): http://tekton.100.103.221.107.nip.io
+
+Documentación completa de la etapa:
+[equipoEmpiroso-gitops/docs/06-tekton.md](https://github.com/obeedt/equipoEmpiroso-gitops/blob/main/docs/06-tekton.md).

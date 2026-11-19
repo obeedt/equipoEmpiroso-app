@@ -23,8 +23,9 @@ La tienda en el clúster: **http://tienda.100.103.221.107.nip.io** (desde la tai
 
 Cada imagen se etiqueta con el **SHA corto del commit**. Cada carpeta tiene su
 `README.md` con endpoints, métricas y configuración. La documentación completa
-de la etapa está en
-[equipoEmpiroso-gitops/docs/05-microservicios.md](https://github.com/obeedt/equipoEmpiroso-gitops/blob/main/docs/05-microservicios.md).
+está en el repo GitOps:
+[microservicios](https://github.com/obeedt/equipoEmpiroso-gitops/blob/main/docs/05-microservicios.md)
+y [CI con Tekton](https://github.com/obeedt/equipoEmpiroso-gitops/blob/main/docs/06-tekton.md).
 
 ## Pruebas
 
