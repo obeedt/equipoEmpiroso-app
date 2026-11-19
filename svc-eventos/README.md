@@ -56,3 +56,6 @@ python -m pytest
 ```
 
 No necesitan base de datos: un repositorio falso reemplaza a PostgreSQL.
+
+
+MODIFICACIÓN DE PRUEBA DE TEKTON
